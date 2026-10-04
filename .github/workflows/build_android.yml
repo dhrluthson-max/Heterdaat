@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ] # Toegevoegd zodat softprops/action-gh-release getriggerd kan worden
+    tags: [ "v*" ]
   workflow_dispatch:
 
 permissions:
@@ -24,13 +24,19 @@ jobs:
         with:
           python-version: "3.11"
 
-      # 👇 CORRECTE METHODE VOOR SDK & NDK VIA V4 (Node 24 compatibel)
-      # We installeren de specifieke SDK platform en NDK via de 'packages' parameter.
-      - name: Setup Android SDK & NDK
+      # 👇 STAP 1: Start de basis Android SDK (Zonder dat we vage packages meegeven)
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v4.0.1
         with:
           cmdline-tools-version: latest
-          packages: "platforms;android-34 ndk;26.3.11579264 platform-tools"
+
+      # 👇 STAP 2: Installeer handmatig SDK 34 en NDK r26d via de officiële sdkmanager
+      - name: Install Android Platforms & NDK via SDK Manager
+        run: |
+          # Accepteer eerst alle licenties
+          yes | sdkmanager --licenses
+          # Installeer exact Android 34 en de NDK r26d (build 26.3.11579264)
+          sdkmanager "platforms;android-34" "ndk;26.3.11579264" "platform-tools"
 
       - name: Install system dependencies
         run: |
@@ -56,16 +62,14 @@ jobs:
       # 👇 FORCEER BUILDOZER DE SYSTEEM SDK/NDK TE GEBRUIKEN
       - name: Configure buildozer.spec for System SDK/NDK
         run: |
-          # De geselecteerde SDK en NDK paden op de GitHub runner:
           SDK_PATH="/usr/local/lib/android/sdk"
           NDK_PATH="/usr/local/lib/android/sdk/ndk/26.3.11579264"
           
-          # Zorg dat buildozer.spec bestaat
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
           
-          # Update sdk/ndk paths in de spec met | als delimiter
+          # Update paths in de spec
           sed -i "s|#\?\s*android\.sdk_path\s*=.*|android.sdk_path = $SDK_PATH|" buildozer.spec
           sed -i "s|#\?\s*android\.ndk_path\s*=.*|android.ndk_path = $NDK_PATH|" buildozer.spec
           
