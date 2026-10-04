@@ -7,14 +7,13 @@ os.environ["KIVY_TEXT"]   = "sdl2"
 os.environ["KIVY_IMAGE"]  = "imageio"
 
 # ==============================================================================
-# 2. ALGEMENE IMPORTS & LOGGING CONFIGURATIE
+# 2. ALGEMENE IMPORTS & LOGGING
 # ==============================================================================
 import hashlib
 import webbrowser
 import requests
 import logging
 
-# Koppel aan de standaard Kivy logger
 logger = logging.getLogger(__name__)
 
 # ==============================================================================
@@ -29,12 +28,23 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.clock import Clock
 from kivy.utils import platform
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 from plyer import notification, vibrator
 
 import storage
 
 # ==============================================================================
-# 4. CONFIGURATIE & APP LOGICA
+# 4. STEALTH KLEURENPALET (Gedempt & OLED-vriendelijk)
+# ==============================================================================
+BG_COLOR     = (0.11, 0.11, 0.12, 1)  # Zeer donkergrijs, bijna zwart
+CARD_COLOR   = (0.18, 0.18, 0.20, 1)  # Iets lichter grijs voor containers
+INPUT_COLOR  = (0.14, 0.14, 0.15, 1)  # Donkere achtergrond voor invoervelden
+ACCENT_COLOR = (0.30, 0.65, 0.55, 1)  # Matte, gedempte teal (onopvallend)
+TEXT_COLOR   = (0.85, 0.85, 0.85, 1)  # Zacht wit (geen eye-strain)
+DIM_TEXT     = (0.50, 0.50, 0.50, 1)  # Neutraal grijs voor secundaire info
+
+# ==============================================================================
+# 5. APP LOGICA
 # ==============================================================================
 GEHASHDE_PIN = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 is_locked = True
@@ -44,45 +54,91 @@ class VeiligThuis(BoxLayout):
         super().__init__(orientation='vertical', padding=20, spacing=15, **kwargs)
         self.timer_event = None
         self.resterende_tijd = 3
+        
+        # Teken de donkere hoofd-achtergrond
+        with self.canvas.before:
+            Color(rgba=BG_COLOR)
+            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self.update_bg, size=self.update_bg)
+        
         self.ververs_scherm()
+
+    def update_bg(self, *args):
+        self.bg_rect.pos = self.pos
+        self.bg_rect.size = self.size
 
     def ververs_scherm(self):
         self.clear_widgets()
         
+        # 1. DISCREET SLOT SCHERM (Lijkt op een systeem-wachtwoord prompt) -----
         if is_locked:
-            self.add_widget(Label(text="🔒 Veilige Ruimte\nVoer uw pincode in:", font_size='18sp', halign='center', size_hint_y=None, height=80))
-            self.pin_input = TextInput(password=True, multiline=False, size_hint_y=None, height=60, halign='center', font_size='22sp')
+            self.add_widget(Label(
+                text="🔒 System Storage\nAuthentication required:", 
+                font_size='16sp', color=DIM_TEXT, halign='center', size_hint_y=None, height=80
+            ))
+            
+            self.pin_input = TextInput(
+                password=True, multiline=False, size_hint_y=None, height=50, 
+                halign='center', font_size='20sp', background_color=INPUT_COLOR, 
+                foreground_color=TEXT_COLOR, cursor_color=ACCENT_COLOR
+            )
             self.add_widget(self.pin_input)
             
-            btn = Button(text="Ontgrendelen", size_hint_y=None, height=60, background_color=(0.2, 0.8, 0.2, 1), bold=True)
+            btn = Button(
+                text="Access", size_hint_y=None, height=50, 
+                background_normal='', background_color=CARD_COLOR, color=TEXT_COLOR, bold=True
+            )
             btn.bind(on_release=self.check_pin)
             self.add_widget(btn)
+            self.add_widget(BoxLayout()) # Spacer
         
+        # 2. VEILIG HOOFDSCHERM ("System Notes" Dummy Masker) ------------------
         else:
-            self.sos_btn = Button(text="🚨 NOOD / HULP INSCHAKELEN", background_color=(1, 0, 0, 1), bold=True, font_size='20sp', size_hint_y=None, height=90)
+            # SOS Knop (Gecamoufleerd als "Systeem Diagnostiek" om opvallen te voorkomen)
+            self.sos_btn = Button(
+                text="⚡ RUN SYSTEM DIAGNOSTICS (SOS)", 
+                background_normal='', background_color=CARD_COLOR, 
+                color=TEXT_COLOR, font_size='16sp', size_hint_y=None, height=70, bold=True
+            )
             self.sos_btn.bind(on_release=self.start_nood_bevestiging)
             self.add_widget(self.sos_btn)
 
-            self.add_widget(Label(text="📝 Gecentreerd Logboek (AES-256 Gecodeerd):", font_size='14sp', size_hint_y=None, height=30, halign='left'))
+            # Discrete notitie-titel
+            self.add_widget(Label(
+                text="📝 Local Notes Log (AES-256):", 
+                font_size='13sp', color=DIM_TEXT, size_hint_y=None, height=25, halign='left'
+            ))
             
-            notitie_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=10)
-            self.notitie_input = TextInput(hint_text="Typ een discrete notitie...", multiline=False, font_size='14sp')
-            opslaan_btn = Button(text="Opslaan", size_hint_x=None, width=100, background_color=(0, 0.8, 0.5, 1), bold=True)
+            # Invoer-box
+            notitie_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=45, spacing=10)
+            self.notitie_input = TextInput(
+                hint_text="Enter discrete log entry...", multiline=False, font_size='14sp',
+                background_color=INPUT_COLOR, foreground_color=TEXT_COLOR, cursor_color=ACCENT_COLOR
+            )
+            opslaan_btn = Button(
+                text="Save", size_hint_x=None, width=80, 
+                background_normal='', background_color=ACCENT_COLOR, color=BG_COLOR, bold=True
+            )
             opslaan_btn.bind(on_release=self.notitie_opslaan_actie)
             
             notitie_box.add_widget(self.notitie_input)
             notitie_box.add_widget(opslaan_btn)
             self.add_widget(notitie_box)
 
+            # Scrollbaar discreet overzicht van eerdere notities
             scroll = ScrollView(size_hint=(1, 1))
-            self.lijst_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
+            self.lijst_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=8)
             self.lijst_layout.bind(minimum_height=self.lijst_layout.setter('height'))
             
             self.laad_notities_in_scherm()
             scroll.add_widget(self.lijst_layout)
             self.add_widget(scroll)
 
-            self.hulp_btn = Button(text="Informatie & Hulpbronnen", background_color=(0, 0, 1, 1), size_hint_y=None, height=50, bold=True)
+            # Info knop gecamoufleerd
+            self.hulp_btn = Button(
+                text="System Readme & Resources", 
+                background_normal='', background_color=INPUT_COLOR, color=DIM_TEXT, size_hint_y=None, height=40
+            )
             self.hulp_btn.bind(on_release=self.toon_hulpbronnen)
             self.add_widget(self.hulp_btn)
 
@@ -106,26 +162,26 @@ class VeiligThuis(BoxLayout):
         notities = storage.haal_notities_op()
         
         if not notities:
-            self.lijst_layout.add_widget(Label(text="Geen eerdere notities gevonden.", font_size='13sp', size_hint_y=None, height=30, color=(0.7,0.7,0.7,1)))
+            self.lijst_layout.add_widget(Label(
+                text="No index data found.", font_size='13sp', 
+                size_hint_y=None, height=30, color=DIM_TEXT
+            ))
         
         for n in notities:
             notitie_regel = Label(
                 text=f"• {n} ({n[:16]})", 
-                font_size='14sp', 
-                size_hint_y=None, 
-                height=30, 
-                halign='left',
-                valign='middle'
+                font_size='13sp', color=TEXT_COLOR, size_hint_y=None, height=25, 
+                halign='left', valign='middle'
             )
             notitie_regel.bind(size=notitie_regel.setter('text_size'))
             self.lijst_layout.add_widget(notitie_regel)
 
-    # --- SOS Systeem met de nieuwe Logger ---
+    # --- SOS Systeem met Discrete bewoordingen ---
     def start_nood_bevestiging(self, _):
         if self.timer_event: return
         self.resterende_tijd = 3
-        self.sos_btn.text = f"⚠️ ALARM GAAT AF IN {self.resterende_tijd}...\n[KLIK HIER OM TE ANNULLEREN]"
-        self.sos_btn.background_color = (1, 0.5, 0, 1)
+        self.sos_btn.text = f"⚠️ CRITICAL FAULT IN {self.resterende_tijd}...\n[CLICK TO ABORT PROCESS]"
+        self.sos_btn.background_color = (0.7, 0.4, 0.1, 1) # Gedempt oranje
         self.sos_btn.unbind(on_release=self.start_nood_bevestiging)
         self.sos_btn.bind(on_release=self.annuleer_nood)
         self.timer_event = Clock.schedule_interval(self.tel_af, 1.0)
@@ -133,10 +189,9 @@ class VeiligThuis(BoxLayout):
     def tel_af(self, dt):
         self.resterende_tijd -= 1
         
-        # Verbeterde logging/vibratie check
         if platform == "android":
             try: vibrator.vibrate(time=0.1)
-            except Exception as e: logger.warning(f"Vibratie mislukt op Android: {e}")
+            except Exception as e: logger.warning(f"Vibratie fout: {e}")
         else:
             logger.debug("Vibratie overgeslagen (geen Android platform)")
 
@@ -145,14 +200,14 @@ class VeiligThuis(BoxLayout):
             self.timer_event = None
             self.voer_echt_alarm_uit()
         else:
-            self.sos_btn.text = f"⚠️ ALARM GAAT AF IN {self.resterende_tijd}...\n[KLIK HIER OM TE ANNULLEREN]"
+            self.sos_btn.text = f"⚠️ CRITICAL FAULT IN {self.resterende_tijd}...\n[CLICK TO ABORT PROCESS]"
 
     def annuleer_nood(self, _):
         if self.timer_event:
             Clock.unschedule(self.timer_event)
             self.timer_event = None
-        self.sos_btn.text = "🚨 NOOD / HULP INSCHAKELEN"
-        self.sos_btn.background_color = (1, 0, 0, 1)
+        self.sos_btn.text = "⚡ RUN SYSTEM DIAGNOSTICS (SOS)"
+        self.sos_btn.background_color = CARD_COLOR
         self.sos_btn.unbind(on_release=self.annuleer_nood)
         self.sos_btn.bind(on_release=self.start_nood_bevestiging)
 
@@ -163,29 +218,20 @@ class VeiligThuis(BoxLayout):
             try: vibrator.vibrate(time=1.0)
             except: pass
             
-        try: notification.notify(title="🚨 Alarm geactiveerd", message="De noodoproep wordt gestart.", timeout=5)
+        try: notification.notify(title="System Alert", message="Diagnostics protocol initialized.", timeout=5)
         except: pass
         
         webbrowser.open("tel:+310800113")
 
         try: requests.post("http://127.0.0.1:8000", json={"user_hash": "anoniem_mobiel"}, timeout=3)
-        except Exception as e: logger.error(f"Backend server onbereikbaar: {e}")
+        except Exception as e: logger.error(f"Network error: {e}")
 
     def toon_hulpbronnen(self, *_):
         from kivy.uix.popup import Popup
-        txt = ("🚨 ACUTE SPOED: 112\n\n"
-               "🔹 Veilig Thuis: 0800-0432\n"
-               "  (Huiselijk geweld & kindermishandeling)\n\n"
-               "🔹 113 Zelfmoordpreventie: 0800-0113\n\n"
-               "🔹 Slachtofferhulp: 0900-0101\n\n"
-               "🔹 De Kindertelefoon: 0800-0432")
-        popup = Popup(title="Belangrijke Hulpbronnen", content=Label(text=txt, halign='left', valign='middle', font_size='15sp', line_height=1.2), size_hint=(0.95, 0.75))
-        popup.content.bind(size=popup.content.setter('text_size'))
-        popup.open()
-
-class VeiligApp(App):
-    def build(self):
-        return VeiligThuis()
-
-if __name__ == '__main__':
-    VeiligApp().run()
+        txt = ("🚨 EMERGENCY CODE: 112\n\n"
+               "🔹 Support Line A: 0800-0432\n"
+               "  (Secure counseling line)\n\n"
+               "🔹 Support Line B: 0800-0113\n\n"
+               "🔹 Support Line C: 0900-0101")
+        popup = Popup(
+            title="System Documentation", 
