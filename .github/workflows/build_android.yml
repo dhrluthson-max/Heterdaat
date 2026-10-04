@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      # 👇 STAP 1: EERST systeem-dependencies & Java installeren (nodig voor de sdkmanager!)
+      # STAP 1: Systeem-dependencies & Java installeren
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -35,20 +35,20 @@ jobs:
             cmake libffi-dev libssl-dev automake \
             python3-venv python3-full ccache clang
 
-      # 👇 STAP 2: Zet de basis Android SDK commandline-tools neer
+      # STAP 2: Zet de basis Android SDK commandline-tools neer in de veilige HOME directory
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
           cmdline-tools-version: latest
+          sdk-root: ${{ github.workspace }}/android-sdk
 
-      # 👇 STAP 3: Configureer PATH en installeer Android Platforms & NDK
+      # STAP 3: Installeer Android Platforms & NDK via de nieuwe root-locatie
       - name: Install Android Platforms & NDK via SDK Manager
         run: |
-          # Definieer de juiste paden expliciet voor deze terminal sessie
-          export ANDROID_HOME="/usr/local/lib/android/sdk"
+          export ANDROID_HOME="${{ github.workspace }}/android-sdk"
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
           
-          # Accepteer licenties en installeer pakketten
+          # Licenties accepteren en pakketten downloaden
           yes | sdkmanager --licenses
           sdkmanager "platforms;android-34" "ndk;26.3.11579264" "platform-tools"
 
@@ -63,10 +63,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
+      # STAP 4: Vertel Buildozer exact waar de SDK en NDK nu staan
       - name: Configure buildozer.spec for System SDK/NDK
         run: |
-          SDK_PATH="/usr/local/lib/android/sdk"
-          NDK_PATH="/usr/local/lib/android/sdk/ndk/26.3.11579264"
+          SDK_PATH="${{ github.workspace }}/android-sdk"
+          NDK_PATH="${{ github.workspace }}/android-sdk/ndk/26.3.11579264"
           
           if [ ! -f buildozer.spec ]; then
             buildozer init
