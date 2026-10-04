@@ -16,26 +16,24 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      # ✅ Major tags = geen Node.js 20 waarschuwingen meer
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5.5.0
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 👇 STAP 1: Start de basis Android SDK (Zonder dat we vage packages meegeven)
+      # ✅ android-actions/setup-android@v4 is Node 24 compatibel
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4.0.1
+        uses: android-actions/setup-android@v4
         with:
           cmdline-tools-version: latest
 
-      # 👇 STAP 2: Installeer handmatig SDK 34 en NDK r26d via de officiële sdkmanager
       - name: Install Android Platforms & NDK via SDK Manager
         run: |
-          # Accepteer eerst alle licenties
           yes | sdkmanager --licenses
-          # Installeer exact Android 34 en de NDK r26d (build 26.3.11579264)
           sdkmanager "platforms;android-34" "ndk;26.3.11579264" "platform-tools"
 
       - name: Install system dependencies
@@ -49,7 +47,7 @@ jobs:
             python3-venv python3-full ccache clang
 
       - name: Cache Buildozer & Pip
-        uses: actions/cache@v4.2.0
+        uses: actions/cache@v4
         with:
           path: |
             ~/.buildozer
@@ -59,24 +57,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
-      # 👇 FORCEER BUILDOZER DE SYSTEEM SDK/NDK TE GEBRUIKEN
       - name: Configure buildozer.spec for System SDK/NDK
         run: |
           SDK_PATH="/usr/local/lib/android/sdk"
           NDK_PATH="/usr/local/lib/android/sdk/ndk/26.3.11579264"
-          
+
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
-          
-          # Update paths in de spec
+
           sed -i "s|#\?\s*android\.sdk_path\s*=.*|android.sdk_path = $SDK_PATH|" buildozer.spec
           sed -i "s|#\?\s*android\.ndk_path\s*=.*|android.ndk_path = $NDK_PATH|" buildozer.spec
-          
-          # Zorg dat we de juiste api/minapi gebruiken
           sed -i "s|#\?\s*android\.api\s*=.*|android.api = 34|" buildozer.spec
           sed -i "s|#\?\s*android\.minapi\s*=.*|android.minapi = 21|" buildozer.spec
-          
+
           echo "--- buildozer.spec check ---"
           grep -E "android\.(sdk_path|ndk_path|api|minapi)" buildozer.spec
 
@@ -91,7 +85,7 @@ jobs:
           buildozer -v android debug
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4.6.1
+        uses: actions/upload-artifact@v4
         with:
           name: heterdaad-apk
           path: bin/*.apk
@@ -99,7 +93,7 @@ jobs:
 
       - name: Create Release (op tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2.2.1
+        uses: softprops/action-gh-release@v2
         with:
           files: bin/*.apk
           generate_release_notes: true
