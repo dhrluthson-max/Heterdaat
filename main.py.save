@@ -1,3 +1,22 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import os
 os.environ["KIVY_WINDOW"] = "sdl2"
 os.environ["KIVY_TEXT"]   = "sdl2"
@@ -128,7 +147,7 @@ class VeiligThuis(BoxLayout):
             self.terminal_scroll = ScrollView(size_hint=(1, 0.4))
             self.terminal_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=4, padding=10)
             self.terminal_layout.bind(minimum_height=self.terminal_layout.setter('height'))
-            self.terminal_scroll.add_widget(self.terminal_layout)
+            self.terminal_scroll.add_widget(self.terminal_scroll)
             self.add_widget(self.terminal_scroll)
             logger.info("DASHBOARD SECURE SUBSYSTEM INITIALIZED.")
 
@@ -148,6 +167,7 @@ class VeiligThuis(BoxLayout):
 
     def notitie_opslaan_actie(self, _):
         tekst = self.notitie_input.text.strip()
+        # Gebruikt nu direct de interne functie in plaats van storage.sla_notitie_op
         if tekst and sla_notitie_op(tekst):
             logger.info("Log entry successfully encrypted and saved.")
             self.notitie_input.text = ""
@@ -155,6 +175,7 @@ class VeiligThuis(BoxLayout):
 
     def laad_notities_in_scherm(self):
         self.lijst_layout.clear_widgets()
+        # Gebruikt nu direct de interne functie in plaats van storage.haal_notities_op
         for n in haal_notities_op():
             notitie_regel = Label(text=f"• {n}", font_size='13sp', color=(0.85, 0.85, 0.85, 1), size_hint_y=None, height=25, halign='left', valign='middle')
             notitie_regel.bind(size=notitie_regel.setter('text_size'))
@@ -218,3 +239,44 @@ class MainApp(App):
 
 if __name__ == '__main__':
     MainApp().run()
+import sqlite3
+
+DB_NAME = "backend_storage.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def sla_notitie_op(tekst):
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO notes (content) VALUES (?)", (tekst,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+def haal_notities_op():
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT content FROM notes ORDER BY id DESC")
+        # Zorg dat we een schone lijst van tekst-strings teruggeven aan Kivy
+        notities = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return notities
+    except Exception:
+        return []
+
+# Zorg dat de database direct klaarstaat bij het opstarten
+init_db()
