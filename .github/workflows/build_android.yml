@@ -16,26 +16,35 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.5.0
         with:
           python-version: "3.11"
           cache: 'pip'
 
-      - name: Install system dependencies (Ubuntu 24.04 Noble)
+      # 👇 INSTALL SYSTEEM SDK/NDK (Snel, gecached, licenties geaccepteerd)
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          ndk-version: r26d
+          cmdline-tools-version: latest
+        env:
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk python3-pip \
             autoconf libtool pkg-config zlib1g-dev \
-            libncurses-dev \
-            cmake libffi-dev libssl-dev automake \
+            libncurses-dev cmake libffi-dev libssl-dev automake \
             python3-venv python3-full
 
       - name: Cache Buildozer & Pip
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.0
         with:
           path: |
             ~/.buildozer
@@ -44,13 +53,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
-      - name: Accept Android SDK Licenses
+      # 👇 FORCEER BUILDOZER DE SYSTEEM SDK/NDK TE GEBRUIKEN
+      # We patchen buildozer.spec op de vlachte (geen handmatig wijzigen nodig)
+      - name: Configure buildozer.spec for System SDK/NDK
         run: |
-          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
-          mkdir -p $ANDROID_HOME/licenses
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
-          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+          SDK_PATH="/usr/local/lib/android/sdk"
+          NDK_PATH="/usr/local/lib/android/sdk/ndk/26.1.10909125" # Standaard pad van setup-android r26d
+          
+          # Zorg dat buildozer.spec bestaat
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+          
+          # Update sdk/ndk paths in spec
+          sed -i "s|^android\.sdk_path.*|android.sdk_path = $SDK_PATH|" buildozer.spec
+          sed -i "s|^android\.ndk_path.*|android.ndk_path = $NDK_PATH|" buildozer.spec
+          # Zorg dat we de juiste api/minapi gebruiken
+          sed -i "s|^android\.api.*|android.api = 34|" buildozer.spec
+          sed -i "s|^android\.minapi.*|android.minapi = 21|" buildozer.spec
+          
+          echo "--- buildozer.spec check ---"
+          grep -E "android\.(sdk_path|ndk_path|api|minapi)" buildozer.spec
 
       - name: Install Buildozer
         run: |
@@ -59,11 +82,11 @@ jobs:
 
       - name: Build with Buildozer
         run: |
-          export PATH=$HOME/.buildozer/android/platform/android-sdk/platform-tools:$PATH
+          # Buildozer gebruikt nu de systeem SDK/NDK via de gepatchte spec
           buildozer -v android debug
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.1
         with:
           name: heterdaad-apk
           path: bin/*.apk
@@ -71,7 +94,7 @@ jobs:
 
       - name: Create Release (op tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.2.1
         with:
           files: bin/*.apk
           generate_release_notes: true
