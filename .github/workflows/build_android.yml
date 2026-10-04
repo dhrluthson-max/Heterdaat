@@ -3,6 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*" ] # Toegevoegd zodat de softprops/action-gh-release stap onderaan daadwerkelijk getriggerd kan worden
   workflow_dispatch:
 
 permissions:
@@ -22,7 +23,7 @@ jobs:
         uses: actions/setup-python@v5.5.0
         with:
           python-version: "3.11"
-          cache: 'pip'
+          # 'cache: pip' verwijderd om crashes bij ontbrekende requirements.txt te voorkomen
 
       # 👇 INSTALL SYSTEEM SDK/NDK (Snel, gecached, licenties geaccepteerd)
       - name: Setup Android SDK & NDK
@@ -40,8 +41,9 @@ jobs:
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk python3-pip \
             autoconf libtool pkg-config zlib1g-dev \
-            libncurses-dev cmake libffi-dev libssl-dev automake \
-            python3-venv python3-full
+            libncurses5-dev libncursesw5-dev libtinfo5 \
+            cmake libffi-dev libssl-dev automake \
+            python3-venv python3-full ccache clang
 
       - name: Cache Buildozer & Pip
         uses: actions/cache@v4.2.0
@@ -49,28 +51,30 @@ jobs:
           path: |
             ~/.buildozer
             ~/.cache/pip
+            ~/.ccache
           key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
       # 👇 FORCEER BUILDOZER DE SYSTEEM SDK/NDK TE GEBRUIKEN
-      # We patchen buildozer.spec op de vlachte (geen handmatig wijzigen nodig)
       - name: Configure buildozer.spec for System SDK/NDK
         run: |
           SDK_PATH="/usr/local/lib/android/sdk"
-          NDK_PATH="/usr/local/lib/android/sdk/ndk/26.1.10909125" # Standaard pad van setup-android r26d
+          # Gecorrigeerd: r26d komt exact overeen met buildversie 26.3.11579264
+          NDK_PATH="/usr/local/lib/android/sdk/ndk/26.3.11579264" 
           
           # Zorg dat buildozer.spec bestaat
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
           
-          # Update sdk/ndk paths in spec
-          sed -i "s|^android\.sdk_path.*|android.sdk_path = $SDK_PATH|" buildozer.spec
-          sed -i "s|^android\.ndk_path.*|android.ndk_path = $NDK_PATH|" buildozer.spec
+          # Update sdk/ndk paths in spec (gebruik | als delimiter omdat paden slashes bevatten)
+          sed -i "s|#\?\s*android\.sdk_path\s*=.*|android.sdk_path = $SDK_PATH|" buildozer.spec
+          sed -i "s|#\?\s*android\.ndk_path\s*=.*|android.ndk_path = $NDK_PATH|" buildozer.spec
+          
           # Zorg dat we de juiste api/minapi gebruiken
-          sed -i "s|^android\.api.*|android.api = 34|" buildozer.spec
-          sed -i "s|^android\.minapi.*|android.minapi = 21|" buildozer.spec
+          sed -i "s|#\?\s*android\.api\s*=.*|android.api = 34|" buildozer.spec
+          sed -i "s|#\?\s*android\.minapi\s*=.*|android.minapi = 21|" buildozer.spec
           
           echo "--- buildozer.spec check ---"
           grep -E "android\.(sdk_path|ndk_path|api|minapi)" buildozer.spec
@@ -82,7 +86,8 @@ jobs:
 
       - name: Build with Buildozer
         run: |
-          # Buildozer gebruikt nu de systeem SDK/NDK via de gepatchte spec
+          # Voorkom dat Buildozer weigert te draaien als root op de GitHub runner
+          export BUILDOZER_WARN_ON_ROOT=0
           buildozer -v android debug
 
       - name: Upload APK Artifact
