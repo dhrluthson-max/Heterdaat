@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ] # Toegevoegd zodat de softprops/action-gh-release stap onderaan daadwerkelijk getriggerd kan worden
+    tags: [ "v*" ] # Toegevoegd zodat softprops/action-gh-release getriggerd kan worden
   workflow_dispatch:
 
 permissions:
@@ -23,17 +23,14 @@ jobs:
         uses: actions/setup-python@v5.5.0
         with:
           python-version: "3.11"
-          # 'cache: pip' verwijderd om crashes bij ontbrekende requirements.txt te voorkomen
 
-      # 👇 INSTALL SYSTEEM SDK/NDK (Snel, gecached, licenties geaccepteerd)
+      # 👇 CORRECTE METHODE VOOR SDK & NDK VIA V4 (Node 24 compatibel)
+      # We installeren de specifieke SDK platform en NDK via de 'packages' parameter.
       - name: Setup Android SDK & NDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4.0.1
         with:
-          api-level: 34
-          ndk-version: r26d
           cmdline-tools-version: latest
-        env:
-          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+          packages: "platforms;android-34 ndk;26.3.11579264 platform-tools"
 
       - name: Install system dependencies
         run: |
@@ -59,16 +56,16 @@ jobs:
       # 👇 FORCEER BUILDOZER DE SYSTEEM SDK/NDK TE GEBRUIKEN
       - name: Configure buildozer.spec for System SDK/NDK
         run: |
+          # De geselecteerde SDK en NDK paden op de GitHub runner:
           SDK_PATH="/usr/local/lib/android/sdk"
-          # Gecorrigeerd: r26d komt exact overeen met buildversie 26.3.11579264
-          NDK_PATH="/usr/local/lib/android/sdk/ndk/26.3.11579264" 
+          NDK_PATH="/usr/local/lib/android/sdk/ndk/26.3.11579264"
           
           # Zorg dat buildozer.spec bestaat
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
           
-          # Update sdk/ndk paths in spec (gebruik | als delimiter omdat paden slashes bevatten)
+          # Update sdk/ndk paths in de spec met | als delimiter
           sed -i "s|#\?\s*android\.sdk_path\s*=.*|android.sdk_path = $SDK_PATH|" buildozer.spec
           sed -i "s|#\?\s*android\.ndk_path\s*=.*|android.ndk_path = $NDK_PATH|" buildozer.spec
           
@@ -86,7 +83,6 @@ jobs:
 
       - name: Build with Buildozer
         run: |
-          # Voorkom dat Buildozer weigert te draaien als root op de GitHub runner
           export BUILDOZER_WARN_ON_ROOT=0
           buildozer -v android debug
 
