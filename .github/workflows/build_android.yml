@@ -15,7 +15,6 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      # ✅ Major tags = geen Node 20 warnings + auto security patches
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -25,13 +24,13 @@ jobs:
           python-version: "3.11"
           cache: 'pip'
 
-      - name: Install system dependencies (Ubuntu 24.04 / Noble)
+      - name: Install system dependencies (Ubuntu 24.04 Noble)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk python3-pip \
             autoconf libtool pkg-config zlib1g-dev \
-            libncurses6-dev libncursesw5-dev libtinfo6 \
+            libncurses-dev libncursesw6-dev \
             cmake libffi-dev libssl-dev automake \
             python3-venv python3-full
 
