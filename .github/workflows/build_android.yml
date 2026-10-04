@@ -16,7 +16,6 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      # ✅ Major tags = geen Node.js 20 waarschuwingen meer
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -25,26 +24,33 @@ jobs:
         with:
           python-version: "3.11"
 
-      # ✅ android-actions/setup-android@v4 is Node 24 compatibel
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          cmdline-tools-version: latest
-
-      - name: Install Android Platforms & NDK via SDK Manager
-        run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platforms;android-34" "ndk;26.3.11579264" "platform-tools"
-
+      # 👇 STAP 1: EERST systeem-dependencies & Java installeren (nodig voor de sdkmanager!)
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk python3-pip \
             autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev libtinfo5 \
+            libncurses-dev libncursesw6-dev libtinfo6 \
             cmake libffi-dev libssl-dev automake \
             python3-venv python3-full ccache clang
+
+      # 👇 STAP 2: Zet de basis Android SDK commandline-tools neer
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: latest
+
+      # 👇 STAP 3: Configureer PATH en installeer Android Platforms & NDK
+      - name: Install Android Platforms & NDK via SDK Manager
+        run: |
+          # Definieer de juiste paden expliciet voor deze terminal sessie
+          export ANDROID_HOME="/usr/local/lib/android/sdk"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          
+          # Accepteer licenties en installeer pakketten
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-34" "ndk;26.3.11579264" "platform-tools"
 
       - name: Cache Buildozer & Pip
         uses: actions/cache@v4
@@ -61,16 +67,16 @@ jobs:
         run: |
           SDK_PATH="/usr/local/lib/android/sdk"
           NDK_PATH="/usr/local/lib/android/sdk/ndk/26.3.11579264"
-
+          
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
-
+          
           sed -i "s|#\?\s*android\.sdk_path\s*=.*|android.sdk_path = $SDK_PATH|" buildozer.spec
           sed -i "s|#\?\s*android\.ndk_path\s*=.*|android.ndk_path = $NDK_PATH|" buildozer.spec
           sed -i "s|#\?\s*android\.api\s*=.*|android.api = 34|" buildozer.spec
           sed -i "s|#\?\s*android\.minapi\s*=.*|android.minapi = 21|" buildozer.spec
-
+          
           echo "--- buildozer.spec check ---"
           grep -E "android\.(sdk_path|ndk_path|api|minapi)" buildozer.spec
 
