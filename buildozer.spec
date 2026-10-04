@@ -39,7 +39,7 @@ android.api = 34
 android.minapi = 21
 
 # (str) Android NDK version to use
-android.ndk = 26b
+android.ndk = 25b
 
 # (str) Android SDK directory to use (leave empty for autodetect)
 android.sdk = 
